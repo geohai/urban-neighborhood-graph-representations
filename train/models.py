@@ -13,4 +13,7 @@ class NodeEmbeddings(nn.Module):
 
         # TODO: do i need activation here?
         return z1
+
+    def return_embedding_by_idx(self, node_idx):
+        return self.node_embeddings(node_idx)
     

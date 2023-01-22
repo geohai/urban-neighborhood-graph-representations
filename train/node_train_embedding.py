@@ -4,9 +4,6 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
-import torchvision
-from torchvision import datasets, models, transforms, utils
-import torchvision.transforms.functional as TF
 
 from tqdm import tqdm
 import numpy as np
@@ -26,17 +23,22 @@ from collections import OrderedDict
 from node_dataset import * 
 from models import *
 
-data_path_list_path = '../dataset/'
-count_path='data/countchiae.pickle'
-ckpt_save_dir = 'checkpoint/docchiae'
-
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-model_name = 'poi_embedding'
+model_name = 'sv_embedding'
 embedding_dim = 200
+
+
+
+doc='outputs/sv2/sv_embedding_0_last.tar' # last model save
+stage =  'spatialdist3/'  #'poi1/' # 'sv2/' or 'spatialdist3/'
+data_dir = '../dataset/data_files/edge_graph_obj'
+save_dir = 'outputs/' + stage 
 
 node_list_file='../dataset/data_files/node_list.csv'
 num_nodes = len(pd.read_csv(node_list_file))
+
+dataset_type=EdgeDataset #NodeDataset
 
 threshold = 0.5
 return_best = True
@@ -50,10 +52,9 @@ lr_decay_rate = 0.7
 lr_decay_epochs = 6
 early_stop_epochs = 6
 save_epochs = 5
-doc='data/docchiae.tar'
+
 margin=2
-save_dir = 'outputs/'
-data_dir = '../dataset/data_files/sv.json'
+
 
 def metrics(stats):
     """
@@ -88,31 +89,63 @@ def train_embedding(model, model_name, dataloaders, criterion, optimizer, metric
             print('-' * 10)
         running_loss = 0.0
         stats = {'T':0,'F':0}
-            # Iterate over data.
-        for pos_index, pos_encoder_embedding, neg_encoder_embedding in tqdm(dataloaders,ascii=True):
-            pos_encoder_embedding = pos_encoder_embedding.to(device)
-            neg_encoder_embedding = neg_encoder_embedding.to(device)
-            pos_index = pos_index.to(device)
 
-            optimizer.zero_grad()
-            with torch.set_grad_enabled(True):
-                # Get model outputs and calculate loss
-                outputs = model(pos_index)
+        # Iterate over data.
+        if dataset_type == NodeDataset:
+            for pos_index, pos_encoder_embedding, neg_encoder_embedding in tqdm(dataloaders):
+                pos_encoder_embedding = pos_encoder_embedding.to(device)
+                neg_encoder_embedding = neg_encoder_embedding.to(device)
+                pos_index = pos_index.to(device)
 
-                loss = criterion(outputs, pos_encoder_embedding, neg_encoder_embedding) # anchor, pos, neg
+                optimizer.zero_grad()
+                with torch.set_grad_enabled(True):
+                    # Get model outputs and calculate loss
+                    outputs = model(pos_index)
 
-                # evaluate based on whether dist(anchor, pos) < dist(anchor, neg)
-                pos_dist = torch.nn.functional.pairwise_distance(outputs, pos_encoder_embedding, p=2.0) 
-                neg_dist = torch.nn.functional.pairwise_distance(outputs, neg_encoder_embedding, p=2.0) 
-                
-                # backward + optimize only if in training phase
-                loss.backward()
-                optimizer.step()
+                    loss = criterion(outputs, pos_encoder_embedding, neg_encoder_embedding) # anchor, pos, neg
 
-            # statistics
-            running_loss += loss.item() # * places.size(0)
-            stats['T'] += torch.sum(pos_dist < neg_dist).cpu().item() # if pos distance < neg distance, this is good
-            stats['F'] += torch.sum(pos_dist > neg_dist).cpu().item()
+                    # evaluate based on whether dist(anchor, pos) < dist(anchor, neg)
+                    pos_dist = torch.nn.functional.pairwise_distance(outputs, pos_encoder_embedding, p=2.0) 
+                    neg_dist = torch.nn.functional.pairwise_distance(outputs, neg_encoder_embedding, p=2.0) 
+                    
+                    # backward + optimize only if in training phase
+                    loss.backward()
+                    optimizer.step()
+
+                # statistics
+                running_loss += loss.item()
+                stats['T'] += torch.sum(pos_dist < neg_dist).cpu().item() # if pos distance < neg distance, this is good
+                stats['F'] += torch.sum(pos_dist > neg_dist).cpu().item()
+
+        # Iterate over data.
+        if dataset_type == EdgeDataset:
+            for anchor_index, pos_index, neg_index in tqdm(dataloaders):
+                anchor_index = anchor_index.to(device)
+                pos_index = pos_index.to(device)
+                neg_index = neg_index.to(device)
+
+                optimizer.zero_grad()
+                with torch.set_grad_enabled(True):
+                    # Get model outputs and calculate loss
+                    outputs = model(anchor_index)
+                    pos_emb = model.return_embedding_by_idx(pos_index)
+                    neg_emb = model.return_embedding_by_idx(neg_index)
+
+                    loss = criterion(outputs, pos_emb, neg_emb) # anchor, pos, neg
+
+                    # evaluate based on whether dist(anchor, pos) < dist(anchor, neg)
+                    pos_dist = torch.nn.functional.pairwise_distance(outputs, pos_emb, p=2.0) 
+                    neg_dist = torch.nn.functional.pairwise_distance(outputs, neg_emb, p=2.0) 
+                    
+                    # backward + optimize only if in training phase
+                    loss.backward()
+                    optimizer.step()
+
+                # statistics
+                running_loss += loss.item()
+                stats['T'] += torch.sum(pos_dist < neg_dist).cpu().item() # if pos distance < neg distance, this is good
+                stats['F'] += torch.sum(pos_dist > neg_dist).cpu().item()
+
         epoch_loss = running_loss / len(dataloaders.dataset)
         epoch_metric_value = metrics(stats)
         if verbose:
@@ -168,7 +201,8 @@ def train_embedding(model, model_name, dataloaders, criterion, optimizer, metric
 
 
 if __name__ == '__main__':
-    datasets1 = NodeDataset(node_list_file='../dataset/data_files/node_list.csv', data_dir=data_dir)
+    datasets1 = dataset_type(node_list_file='../dataset/data_files/node_list.csv', data_dir=data_dir)
+
     dataloaders_dict = DataLoader(datasets1, batch_size=batch_size,shuffle=True, num_workers=1)
     best_metric=0
     best_lr=-1
@@ -185,18 +219,20 @@ if __name__ == '__main__':
             # if not os.path.exists(media_dir):
             #     os.makedirs(media_dir)
             model = model.to(device)
-            # if doc:
-            #     checkpoint=torch.load(doc)
-            #     model.load_state_dict(checkpoint,strict=False)
+            if doc:
+                checkpoint=torch.load(doc)
+                model.load_state_dict(checkpoint,strict=False)
             optimizer = optim.Adam(model.parameters(), lr=i, betas=(0.9, 0.999), eps=1e-08,
                                    weight_decay=j, amsgrad=True)
             loss_fn = torch.nn.TripletMarginLoss(reduction="mean", margin=margin)
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_epochs, gamma=lr_decay_rate)
+
             _, training_log,best_value = train_embedding(model, model_name=model_name, dataloaders=dataloaders_dict, criterion=loss_fn,
                                    optimizer=optimizer, metrics=metrics, num_epochs=num_epochs, threshold=threshold,
                                    save_dir=save_dir, verbose=True, return_best=return_best,
                                    if_early_stop=if_early_stop, early_stop_epochs=early_stop_epochs, scheduler=scheduler,
                                    save_epochs=save_epochs)
+
             print(training_log["metric_value_history"])
             with open(save_path, "a") as file:
                 for k in range(len(training_log["metric_value_history"])):
