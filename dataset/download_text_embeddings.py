@@ -12,6 +12,9 @@ import pandas as pd
 import copy
 from helper_funcs import *
 import json
+import pickle
+import sys
+sys.path.append('safegraph/utils/')
 
 # from torch_geometric.sampler import (
 #     BaseSampler,
@@ -41,7 +44,7 @@ def create_text_bow_embeddings(poi_list):
                 pass
     return bag
 
-def make_poi_text_request(region_id):
+def make_poi_text_request(geometry):
     # call api for a region
         # Get a random bare-bone sentence
     poi_list = [s.bare_bone_sentence() for i in range(10)]
@@ -51,9 +54,9 @@ def make_poi_text_request(region_id):
     # "I've never been whitewater rafting before so I was obviously nervous about doing it. They explained everything that we needed to do in order to be successful in such great detail! I felt completely at ease."]] # list of text info about all POIs in the region
     return poi_list
 
-def call_api(api_name, region_id):
+def call_api(api_name, geometry):
     if api_name == 'poi_text':
-        return make_poi_text_request(region_id)
+        return make_poi_text_request(geometry)
     return 
 
 
@@ -68,13 +71,16 @@ t = torch.from_numpy(glv_emb).float()
 my_embedding_layer = torch.nn.Embedding.from_pretrained(t, freeze=False)
 tokenizer = get_tokenizer("basic_english") # very simple tokenizer, maybe select a better one . this one splits each punctuation to be a token. (https://pytorch.org/text/stable/data_utils.html)
 
-# read node list
-nodes = pd.read_csv('data_files/node_list.csv')
-node_list = np.array(nodes['RegionID'])
+
+# read obj
+graph_obj_path = 'safegraph/compute_graph_checkpoints/checkpoint_0.pkl'
+with open(graph_obj_path, 'rb') as f:
+    g = pickle.load(f) # CensusTractMobility object
+idx_node_map = g.get_idx_node() # dictionary = (idx: region_id)
 torch.manual_seed(42)
 
 # POI and SV do not require an actual graph structure
-num_nodes = len(node_list)
+num_nodes = len(idx_node_map.keys())
 num_node_features = 2 # embedding dimension
 node_embedding_length = 200
 num_sample = 50
@@ -82,12 +88,12 @@ num_sample = 50
 # create bow embeddings; store in dict 
 region_bow_map = {}
     
-for i in range(0, num_nodes):
+for geoid, geom in zip(g.tract_data['GEOID'], g.tract_data['geometry']):
     # download poi dtaa
-    query = call_api(api_name='poi_text', region_id=i)
+    query = call_api(api_name='poi_text', geometry=geom)
     text_bow_embeddings = create_text_bow_embeddings(query)
     bow_list_i = list(text_bow_embeddings)
-    region_bow_map[i] = bow_list_i.copy()
+    region_bow_map[geoid] = bow_list_i.copy()
 
 with open('data_files/poi.json', 'w') as fp:
     json.dump(region_bow_map, fp)
