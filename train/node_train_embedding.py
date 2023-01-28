@@ -30,15 +30,24 @@ embedding_dim = 200
 
 
 
-doc='outputs/sv2/sv_embedding_0_last.tar' # last model save
+doc='outputs/spatialdist3/sv_embedding_4_last.tar' # last model save
 stage =  'spatialdist3/'  #'poi1/' # 'sv2/' or 'spatialdist3/'
 data_dir = '../dataset/data_files/edge_graph_obj'
 save_dir = 'outputs/' + stage 
+dataset_type=EdgeDataset #NodeDataset
 
-node_list_file='../dataset/data_files/node_list.csv'
-num_nodes = len(pd.read_csv(node_list_file))
+
+graph_obj_path = '../dataset/safegraph/compute_graph_checkpoints/checkpoint_4.pkl'
+with open(graph_obj_path, 'rb') as f:
+    g = pickle.load(f) # CensusTractMobility object
+
+node_list = g.get_node_idx() # dictionary = (regionid: idx)
+
+# graph properties
+num_nodes = len(node_list)
 
 dataset_type=EdgeDataset #NodeDataset
+
 
 threshold = 0.5
 return_best = True
@@ -65,7 +74,7 @@ def metrics(stats):
     # print(accuracy)
     return accuracy
 
-def train_embedding(model, model_name, dataloaders, criterion, optimizer, metrics, num_epochs, threshold=0.5,
+def train_embedding(model, model_name, dataloaders, criterion, optimizer, metrics, num_epochs,
                 verbose=True, return_best=True, if_early_stop=True, early_stop_epochs=10, scheduler=None,
                 save_dir=None, save_epochs=5):
     since = time.time()
@@ -199,9 +208,10 @@ def train_embedding(model, model_name, dataloaders, criterion, optimizer, metric
                    os.path.join(save_dir, model_name + '_' + str(training_log['current_epoch']) + '_last.tar'))    
     return model, training_log, best_metric_value
 
-
+data_file_name = 'distance.npy'
+data_type = 'distance'
 if __name__ == '__main__':
-    datasets1 = dataset_type(node_list_file='../dataset/data_files/node_list.csv', data_dir=data_dir)
+    datasets1 = dataset_type(data_dir=data_dir, fn=data_file_name, data_type=data_type, threshold=500)
 
     dataloaders_dict = DataLoader(datasets1, batch_size=batch_size,shuffle=True, num_workers=1)
     best_metric=0
@@ -228,7 +238,7 @@ if __name__ == '__main__':
             scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=lr_decay_epochs, gamma=lr_decay_rate)
 
             _, training_log,best_value = train_embedding(model, model_name=model_name, dataloaders=dataloaders_dict, criterion=loss_fn,
-                                   optimizer=optimizer, metrics=metrics, num_epochs=num_epochs, threshold=threshold,
+                                   optimizer=optimizer, metrics=metrics, num_epochs=num_epochs,
                                    save_dir=save_dir, verbose=True, return_best=return_best,
                                    if_early_stop=if_early_stop, early_stop_epochs=early_stop_epochs, scheduler=scheduler,
                                    save_epochs=save_epochs)

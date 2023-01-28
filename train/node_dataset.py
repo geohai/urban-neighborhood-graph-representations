@@ -13,8 +13,8 @@ class NodeDataset(Dataset):
     """
     This can be used for both images and text data.
     """
-    def __init__(self, graph_obj_path=graph_obj_path, data_dir='../dataset/data_files/poi.json'):
-        self.data_dir = data_dir
+    def __init__(self, graph_obj_path=graph_obj_path, data_dir='../dataset/data_files/', fn='poi.json', data_type='poi', threshold=None):
+        path = data_dir + fn
         
         # read obj
         with open(graph_obj_path, 'rb') as f:
@@ -22,7 +22,7 @@ class NodeDataset(Dataset):
         self.idx_node_map = g.get_idx_node() # dictionary = (idx: region_id)
 
         # read json which contains BOW embeddings keyed by neighborhood idx
-        with open(self.data_dir, 'r') as fp:
+        with open(path, 'r') as fp:
             self.bow = json.load(fp)
 
     def __len__(self):
@@ -55,7 +55,7 @@ class EdgeDataset(Dataset):
     Generates node indices for triplet sampling with probability based on edge weights between nodes.
     """
     def __init__(self, graph_obj_path=graph_obj_path, data_dir='../dataset/data_files/final_edge_data/', fn='distance.npy', data_type='distance', threshold=500):
-        self.data_dir = data_dir
+        path= data_dir + fn
         self.g = None
         self.threshold = threshold # distance threshold in meters from anchor from which to sample a positive sample
         self.data_type = data_type
@@ -69,7 +69,7 @@ class EdgeDataset(Dataset):
         self.idx_node_map = g.get_idx_node() # dictionary = (idx: region_id)
 
         # read graph obj
-        with open(self.data_dir + fn, 'rb') as f:
+        with open(path, 'rb') as f:
             self.edge_weight_mat = np.load(f)
 
     def __len__(self):
@@ -77,7 +77,6 @@ class EdgeDataset(Dataset):
 
     def __getitem__(self, idx):
         node_idx_list_cp = self.idx_node_map.keys()
-
 
         anchor_sampled_idx = self.sample_node(node_idx_list_cp) # sample anchor node
 
@@ -99,11 +98,11 @@ class EdgeDataset(Dataset):
 
     def return_positive_candidates_distance(self, anchor_idx):
         # get 5 closest neighbors according to paper (just for distance)
-        # neighbor_weights = np.reciprocal(self.edge_weight_mat[anchor_idx], where=self.edge_weight_mat[anchor_idx]!=0)
- 
+        neighbor_weights = np.reciprocal(self.edge_weight_mat[anchor_idx], where=self.edge_weight_mat[anchor_idx]!=0)
         edges = self.edge_weight_mat[anchor_idx]
+ 
         # if reciprocol distances is over threshold, it is a neighbor
-        valid = self.edges < self.threshold
+        valid = neighbor_weights < self.threshold
         candidates = edges[valid] 
 
         # now filter to five nearest neighbors
@@ -112,9 +111,11 @@ class EdgeDataset(Dataset):
         return candidates[idxs]
     
     def return_positive_candidates_weights(self, anchor_idx):
+        neighbor_weights = np.reciprocal(self.edge_weight_mat[anchor_idx], where=self.edge_weight_mat[anchor_idx]!=0)
         edges = self.edge_weight_mat[anchor_idx]
-        # if mobility is over threshold, it is a neighbor
-        valid = self.edges > self.threshold
+ 
+        # if reciprocol distances is over threshold, it is a neighbor
+        valid = neighbor_weights < self.threshold
         candidates = edges[valid] 
 
         return candidates

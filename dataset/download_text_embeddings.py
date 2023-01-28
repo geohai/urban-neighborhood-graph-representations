@@ -14,58 +14,47 @@ from helper_funcs import *
 import json
 import pickle
 import sys
+from nltk.corpus import stopwords
+
 sys.path.append('safegraph/utils/')
-
-# from torch_geometric.sampler import (
-#     BaseSampler,
-#     EdgeSamplerInput,
-#     NodeSamplerInput,
-#     SamplerOutput,
-# )
+sys.path.append('yelp/')
+from query_api import *
+from mobility_processor import *
 
 
-def create_text_bow_embeddings(poi_list):
-    # get embedding for each token; put into set representing bow
-    bag = []
-    words = set()
-    for poi in poi_list:
-        token_list = tokenizer(poi)
+def create_text_bow_embeddings(region_bow_string):
+    # get embedding for each word
+    bag = [] # list of embeddings
+    words = set() # only unique words are added
+    
+    token_list = tokenizer(region_bow_string)
 
-        for token in token_list:
-            if token in words:
-                continue
-            try:
-                words.add(token)
-                emb = embeddings_dict[token].tolist()
-                bag.append(emb)
+    for token in token_list:
+        if token in words:
+            continue
+        try:
+            words.add(token)
+            emb = embeddings_dict[token].tolist()
+            bag.append(emb)
 
-            except: # word is not in table and skip
-                print(token)
-                pass
-    return bag
+        except: # word is not in table and skip
+            pass
 
-def make_poi_text_request(geometry):
+        # remove stop words
+    return filter(lambda w: not w in s, bag)
+
+def make_poi_text_request(polygon):
     # call api for a region
-        # Get a random bare-bone sentence
-    poi_list = [s.bare_bone_sentence() for i in range(10)]
+    bow = ' '
+    point = polygon.centroid  # assume that centroid is in shape
+    bow += query_api(str(point.x), str(point.y))
 
+    return bow
 
-    # poi_list = [["Visited Colorado in June 2018 with a group of friends and knew whitewater rafting had to be something we did while we were there. After a lot of research and review reading, I decided to book with Rocky Mountain. We booked the Beginner trip as I was pretty nervous about doing anything higher than that as a group of newbies. It ended up being a great introduction to whitewater, but we'll definitely be doing the intermediate next time. Booking was easy and they let you do the waivers before hand to help speed up check-in! We originally booked with a group of 5 but one of us got held back by altitude sickness, so we ended up being about 25 minutes late for our call time, but the staff was very cool and understanding about it. Our guide was Ron and he was a very chill, knowledgeable dude. Even though we messed up on our paddling a few times he never made us feel stupid for it lol. Overall it was a great experience and if we find ourselves back in the area we will be booking with them again!", "Oh my goodness, I'm giving this place all of the stars! Wish I could give them a million.", 
-    # "I've never been whitewater rafting before so I was obviously nervous about doing it. They explained everything that we needed to do in order to be successful in such great detail! I felt completely at ease."]] # list of text info about all POIs in the region
-    return poi_list
-
-def call_api(api_name, geometry):
-    if api_name == 'poi_text':
-        return make_poi_text_request(geometry)
-    return 
-
-
-# testing
-from wonderwords import RandomSentence
-s = RandomSentence()
 
 glv_emb, glv_vocab = load_glove_embeddings()
 embeddings_dict = dict(zip(glv_vocab, glv_emb))
+s=set(stopwords.words('english')) # define stop words
 
 t = torch.from_numpy(glv_emb).float()
 my_embedding_layer = torch.nn.Embedding.from_pretrained(t, freeze=False)
@@ -87,12 +76,11 @@ num_sample = 50
 
 # create bow embeddings; store in dict 
 region_bow_map = {}
-    
+
 for geoid, geom in zip(g.tract_data['GEOID'], g.tract_data['geometry']):
     # download poi dtaa
-    query = call_api(api_name='poi_text', geometry=geom)
-    text_bow_embeddings = create_text_bow_embeddings(query)
-    bow_list_i = list(text_bow_embeddings)
+    bow_sentence = make_poi_text_request(geom)
+    bow_list_i = create_text_bow_embeddings(bow_sentence)
     region_bow_map[geoid] = bow_list_i.copy()
 
 with open('data_files/poi.json', 'w') as fp:

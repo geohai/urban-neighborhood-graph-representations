@@ -12,8 +12,8 @@ import copy
 import pickle
 import random
 from shapely.geometry import Point
-import sys
 import tqdm
+import sys
 sys.path.append('safegraph/utils/')
 
 preprocess = transforms.Compose([
@@ -23,19 +23,6 @@ preprocess = transforms.Compose([
     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 ])
 
-def generate_random(number, polygon):
-    points = []
-    minx, miny, maxx, maxy = polygon.bounds
-    print(minx)
-    print(miny)
-    print(maxx)
-    print(maxy)
-    while len(points) < number:
-        pnt = Point(random.uniform(minx, maxx), random.uniform(miny, maxy))
-        if polygon.contains(pnt):
-            points.append(pnt)
-    return points
-
 def point_in_poly(coords, ply):
     point = Point(coords[0], coords[1])
     if ply.contains(point):
@@ -43,7 +30,6 @@ def point_in_poly(coords, ply):
     return False
 
 #--------------- SETUP --------------#
-# read node list
 # read obj
 graph_obj_path = 'safegraph/compute_graph_checkpoints/checkpoint_0.pkl'
 with open(graph_obj_path, 'rb') as f:
@@ -54,8 +40,8 @@ start_time = '2019-11-01' # string in ISO format
 end_time = '2023-01-01' # string in ISO format
 username = 'julialromero'
 res=1024
-client_id = 'MLY|5990009514397174|ec6d0114c86e5a941092e3d2731c87a0'
-BASE_DIR = 'mapillary/'
+client_id = 
+BASE_DIR = 'data_files/mapillary/'
 device = 'cpu'
 
 
@@ -69,6 +55,7 @@ mly.set_access_token(client_id)
 def query_mapillary(geom):
     minx, miny, maxx, maxy = geom.bounds
     bbox = {'west': minx, 'south': miny, 'north': maxy, 'east':maxx}
+    print(bbox)
 
     bb_data = json.loads(
         mly.images_in_bbox(bbox,
@@ -77,36 +64,57 @@ def query_mapillary(geom):
                             image_type="pano",
                             compass_angle=(0, 360),) 
     )
-
     return bb_data
 
 
-createCleanDir(BASE_DIR)
-createDir(BASE_DIR)
+# createCleanDir(BASE_DIR)
+# createDir(BASE_DIR)
 
 model = EncoderInception3()
 
 # for each region, collect images and feed thru inception; store in dict
-region_bow_map = {}
-for geoid, geom in zip(g.tract_data['GEOID'], g.tract_data['geometry']):
-    print('-----REGION INCREMENT------')
+with open('data_files/sv.json', 'r') as fp:
+        region_bow_map = json.load(fp)
+
+print(f'Num of regions: {len(g.tract_data)}')
+for region_counter, (geoid, geom) in tqdm.tqdm(enumerate(zip(g.tract_data['GEOID'], g.tract_data['geometry']))):
+    if region_counter < 853:
+        continue
+    print(f'\n\n\n-----REGION COUNTER {region_counter}------')
     bb_data = query_mapillary(geom)
 
 
     # now randomly sample num_sample images, query, and save
     createDir(BASE_DIR + str(geoid))
     imgList = []
-    for i in tqdm(range(0, num_sample)):
+    full_image_list = bb_data['features'].copy()
+    print(type(full_image_list))
+    if len(full_image_list) == 0:
+        print('No images found in this area.')
+    for i in range(0, num_sample):
         filename = BASE_DIR + str(geoid) + "/" + str(i) + ".jpg"
         in_poly = False
+        in_loop_counter = 0
         while in_poly == False:
-            sample = random.choice(bb_data['features'])  # TODO randomly choose 59 all at once
-            in_poly = point_in_poly(bb_data['features'][i]['geometry']['coordinates'], geom)
 
+            if len(full_image_list) == 0:
+                sample = None
+                break
+
+            sample = random.choice(full_image_list)  # TODO randomly choose 50 all at once
+            in_poly = point_in_poly(sample['geometry']['coordinates'], geom)
+            in_loop_counter += 1
+
+            if in_poly == False:
+                full_image_list.remove(sample)
+                in_loop_counter = 0
+                print('removed')
             
+        if sample == None:
+            break
+
         url = mly.image_thumbnail(image_id=sample['properties']['id'], resolution=res)
 
-        # get_thumbnail(image_id, app_access_token)
         with urllib.request.urlopen(url) as response, open(filename, 'wb') as out_file:
             data = response.read() # a `bytes` object
             out_file.write(data)
@@ -116,22 +124,28 @@ for geoid, geom in zip(g.tract_data['GEOID'], g.tract_data['geometry']):
             imgList.append([filename, coords])
 
         writeGeo(BASE_DIR + str(geoid), imgList)
+        print('Log: Saved image')
 
-    bow_list = []
-    batch = None
-    for file, coords in imgList:
-        img = Image.open(file).convert('RGB')
-        input_tensor = preprocess(img)
-        input_batch = input_tensor.unsqueeze(0)
-        if batch == None:
-            batch = input_batch
-        else:
-            batch = torch.concat((batch, input_batch), 0)
+    # if sample == None:
+    #     region_bow_map[str(geoid)] = None
 
-    img_embedding_tensor = model(batch.float())
-        
-    # create bow embeddings; store in dict 
-    region_bow_map[str(geoid)] = img_embedding_tensor.tolist().copy()
+    # else:
+    #     bow_list = []
+    #     batch = None
+    #     for file, coords in imgList:
+    #         img = Image.open(file).convert('RGB')
+    #         input_tensor = preprocess(img)
+    #         input_batch = input_tensor.unsqueeze(0)
+    #         if batch == None:
+    #             batch = input_batch
+    #         else:
+    #             batch = torch.concat((batch, input_batch), 0)
 
-    with open('data_files/sv.json', 'w') as fp:
-        json.dump(region_bow_map, fp)
+    #     img_embedding_tensor = model(batch.float())
+            
+    #     # create bow embeddings; store in dict 
+    #     region_bow_map[str(geoid)] = img_embedding_tensor.tolist().copy()
+
+    # with open('data_files/sv.json', 'w') as fp:
+    #     json.dump(region_bow_map, fp)
+    # print(f'-- SAVED {region_counter}')

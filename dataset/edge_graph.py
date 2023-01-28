@@ -20,6 +20,7 @@ node_list = g.get_node_idx() # dictionary = (regionid: idx)
 
 # graph properties
 num_nodes = len(node_list)
+print(f'Number of regions: {num_nodes}')
 node_embedding_length = 200
 num_sample = 50
 
@@ -39,7 +40,7 @@ shapes = df['geometry']
 # spatial distance with geopandas
 dist_edge_matrix = np.zeros((num_nodes, num_nodes))
 
-# directed, so we only need to compute one side of the diagonal
+# undirected, so we only need to compute one side of the diagonal
 for i in shapes.index:
     for j in range(0, shapes.shape[0]):
         dist_edge_matrix[i][j] = shapes.iloc[i].distance(shapes.iloc[j])
