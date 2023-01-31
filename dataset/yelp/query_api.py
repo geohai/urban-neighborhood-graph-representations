@@ -17,11 +17,9 @@ from mobility_processor import *
 import pickle
 
 # https://www.yelp.com/developers/v3/manage_app
-with open('yelp/yelp_key.txt') as f:
+with open('yelp/yelp_key_wait.txt') as f:
     lines = f.readline()
-print(lines)
 API_KEY = lines
-num_samples = 3
 
 # API constants, you shouldn't have to change these.
 API_HOST = 'https://api.yelp.com'
@@ -30,8 +28,8 @@ BUSINESS_PATH = '/v3/businesses/'  # Business ID will come after slash.
 
 
 # Defaults for our simple example.
-SEARCH_LIMIT = 5 
-
+SEARCH_LIMIT = 10
+num_reviews = 5
 
 def request(host, path, api_key, url_params=None):
     """Given your API_KEY, send a GET request to the API.
@@ -66,6 +64,7 @@ def search(api_key, longitude, latitude):
     url_params = {
         'longitude': longitude.replace(' ', '+'),
         'latitude': latitude.replace(' ', '+'),
+        'radius': '1610'.replace(' ', '+'), # 1 miles
         'limit': SEARCH_LIMIT
     }
     return request(API_HOST, SEARCH_PATH, api_key, url_params=url_params)
@@ -88,30 +87,40 @@ def query_api(longitude, latitude):
 
     if not businesses:
         print(u'No businesses for {0},{1} found.'.format(longitude, latitude))
-        return
+        return ''
 
     # append all words to a sentence
     bow_list = ''
     for business in businesses:
         for cat in business['categories']: # get category, prices, customer reviews
-            bow_list += cat['alias'] + ' '
-        bow_list += business['price'] + ' '
+            try:
+                bow_list += cat['alias'] + ' '
+            except:
+                pass
+        try:
+            bow_list += business['price'] + ' '
+        except:
+            pass
         
         business_id = business['id']
+        print(f'Business ID: {business_id}')
         reviews = get_business_reviews(API_KEY, business_id).get('reviews')
-        for review in reviews[0:3]:
-            bow_list += review['text'] + ' '
+        if (reviews != None):
+            temp_num_reviews = min(len(reviews), num_reviews)
+            for review in reviews[0:temp_num_reviews]:
+                bow_list += review['text'] + ' '
     
     return bow_list
 
 if __name__ == '__main__':
-    graph_obj_path = 'safegraph/compute_graph_checkpoints/checkpoint_0.pkl'
+    graph_obj_path = 'safegraph/compute_graph_checkpoints/checkpoint_11.pkl'
     with open(graph_obj_path, 'rb') as f:
         g = pickle.load(f) # CensusTractMobility object
     idx_node_map = g.get_idx_node() # dictionary = (idx: region_id)
     
-    bow = ' '
+    
     for polygon in g.tract_data['geometry'][0:1]:
+        bow = ' '
         point = polygon.centroid  # assume that centroid is in shape
         bow += query_api(str(point.x), str(point.y))
 

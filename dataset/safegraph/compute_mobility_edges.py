@@ -6,12 +6,15 @@ import pickle
 sys.path.append('safegraph/utils/')
 from mobility_processor import *
 
-# ct = CensusTractMobility()
-checkpoint_version = 9
-checkpoint_path = f'safegraph/compute_graph_checkpoints/checkpoint_{checkpoint_version}.pkl'
-with open(checkpoint_path, 'rb') as f:
-    ct = pickle.load(f)
+# save_path = tract_data_dir='data_files/Tracts/grandjunction/tl_2016_08077_edges.shp'
+ct = CensusTractMobility(tract_data_dir='data_files/Tracts/denver/census_tracts_2010.shp')
+checkpoint_version = -1
+# checkpoint_path = f'safegraph/compute_graph_checkpoints/denver/checkpoint_{checkpoint_version}.pkl'
+# with open(checkpoint_path, 'rb') as f:
+#     ct = pickle.load(f)
 
+
+ct.add_census_tracts()
 
 for i, fn in enumerate(os.listdir('safegraph/colorado')): # one file for each month
     if i <= checkpoint_version:
@@ -22,11 +25,12 @@ for i, fn in enumerate(os.listdir('safegraph/colorado')): # one file for each mo
     d = d.drop(index=d[d['visitor_home_aggregation'].isna()].index)
     print(d.shape)
 
+
     ct.add_weighted_edge_matrix(d)
     mat = ct.get_edge_mat()
     print(mat.sum())
 
-    ct.save_pickle(f'safegraph/compute_graph_checkpoints/checkpoint_{i}.pkl')
+    ct.save_pickle(f'safegraph/compute_graph_checkpoints/grandjunction_denver/checkpoint_{i}.pkl')
     print('------ SAVED FILED !!! -------')
     print()
 

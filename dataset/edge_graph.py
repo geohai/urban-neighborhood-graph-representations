@@ -12,54 +12,56 @@ sys.path.append('safegraph/utils/')
 from mobility_processor import *
 
 #--------------- SETUP --------------#
-graph_obj_path = 'safegraph/compute_graph_checkpoints/checkpoint_0.pkl'
+graph_obj_path = 'safegraph/compute_graph_checkpoints/grandjunction_denver/checkpoint_11.pkl'
 with open(graph_obj_path, 'rb') as f:
     g = pickle.load(f) # CensusTractMobility object
 
-node_list = g.get_node_idx() # dictionary = (regionid: idx)
-
 # graph properties
-num_nodes = len(node_list)
+num_nodes = g.num_nodes
 print(f'Number of regions: {num_nodes}')
 node_embedding_length = 200
-num_sample = 50
 
 # Read census tract shapefiles: https://www.census.gov/cgi-bin/geo/shapefiles/index.php?year=2021&layergroup=Census+Tracts
 df = g.get_geopandas_tracts()
 df = df.to_crs("EPSG:32643") # https://www.spatialreference.org/ref/epsg/wgs-84-utm-zone-43n/ -- units in meters
-shapes = df['geometry']
+shapes = df[['geometry']]
 
-# dummy data for now
-# df = df.iloc[0:num_nodes]
-# df.plot()
-# df.boundary.plot()
-# plt.show()
+shapes['centroid'] = shapes.apply(lambda x: x.centroid)
+# subset for now
+t = df.plot()
+plt.savefig('data_files/map')
+plt.show()
+t = df.boundary.plot()
+plt.savefig('data_files/boundarymap')
+plt.show()
+
 
 # ---- COMPUTE EDGE WEIGHT MATRIX  ---- #
-# weights
 # spatial distance with geopandas
 dist_edge_matrix = np.zeros((num_nodes, num_nodes))
 
 # undirected, so we only need to compute one side of the diagonal
-for i in shapes.index:
-    for j in range(0, shapes.shape[0]):
-        dist_edge_matrix[i][j] = shapes.iloc[i].distance(shapes.iloc[j])
+for i in range(0, num_nodes):
+    for j in range(0, num_nodes):
+        dist_edge_matrix[i][j] = shapes['centroid'].iloc[i].distance(shapes['centroid'].iloc[j])
 
-# now mirror it along the diagonal
-cp = dist_edge_matrix.T
-for i in shapes.index:
-    for j in range(i, shapes.shape[0]):
-        if dist_edge_matrix[i][j] == 0:
-            dist_edge_matrix[i][j] == cp[i][j]
-        else:
-            print('not empty')
+# # now mirror it along the diagonal
+# cp = dist_edge_matrix.T
+# print(cp[0])
+# quit()
+# for i in range(0, num_nodes):
+#     for j in range(i, num_nodes):
+#         if dist_edge_matrix[i][j] == 0:
+#             dist_edge_matrix[i][j] == cp[i][j]
+#         else:
+#             print('not empty')
 
 # TODO: save distance and mobility values 
 np.save('data_files/final_edge_data/distance.npy', dist_edge_matrix)
 
 mob_edge_matrix = g.get_edge_mat() # 2D array of mobility weights of nxn
 np.save('data_files/final_edge_data/mobility.npy', mob_edge_matrix)
-
+print('saved')
 
 
 # ------ Played around with Pytorch Geometric below, ended up not using it ------- #
