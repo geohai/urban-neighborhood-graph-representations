@@ -88,12 +88,7 @@ def createCleanDir(base_path):
 
 def createDir(dirPath):
   try:
-    os.mkdir(dirPath)
+    os.makedirs(dirPath)
   except:
     pass
 
-
-def writeGeo(dirName, imgList):
-  with open(dirName + "/geocoordinates.txt", "w") as f:
-    for data in imgList:
-      f.write(",".join(data) + "\n")

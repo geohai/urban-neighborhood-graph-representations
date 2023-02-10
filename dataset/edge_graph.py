@@ -1,9 +1,6 @@
 
-import torch
-from torch_geometric.data import Data
 import numpy as np
 import pandas as pd
-import itertools
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import pickle
@@ -66,6 +63,7 @@ print('saved')
 
 # ------ Played around with Pytorch Geometric below, ended up not using it ------- #
 
+# from torch_geometric.data import Data
 # edge_idx_matrix = itertools.product(nodes, nodes) # create edges between all nodes (directed)
 # edge_idx_matrix = list(edge_idx_matrix)
 
