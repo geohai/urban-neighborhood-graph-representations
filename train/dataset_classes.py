@@ -9,10 +9,70 @@ import pickle
 import json
 import sys
 sys.path.append('../dataset/safegraph/utils/')
+import os
+import imageio as io
+
+class SatelliteImageryDataset(Dataset):
+    """
+    csv_file: Path to the csv file containing "node" column with geoids.
+    root_dir: Directory with subfolders containing images for each geometry.
+    transform (callable, optional): transforms on images.
+    """
+    
+    def __init__(self, node_list_path, root_image_dir, fn, is_train=True, transform=None):
+        self.node_list = pd.read_csv(node_list_path, dtype={'GEOID': str})
+        self.root_dir = root_image_dir
+        self.fn = fn
+        self.is_train = is_train
+        self.transform = transform
+        
+        if self.is_train:
+            self.index = self.node_list.index.values
+        
+    def __len__(self):
+        return len(self.node_list)
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        # path to the positive sample
+        pos_idx = idx
+        img_dir = os.path.join(self.root_dir, str(self.node_list.iloc[pos_idx, 0]))
+        img_path = os.path.join(img_dir, self.fn)
+        
+        pos_image = io.imread(img_path)
+        pos_image = self.get_band_from_landsat(pos_image, bands=[3, 2, 1])
+        
+        if self.is_train:
+            # choose a negative sample
+            negative_list = self.index[self.index!=pos_idx]
+            neg_idx = random.choice(negative_list)
+            
+            img_dir = os.path.join(self.root_dir, str(self.node_list.iloc[neg_idx, 0]))
+            img_path = os.path.join(img_dir, self.fn)
+            
+            neg_image = io.imread(img_path)
+            neg_image = self.get_band_from_landsat(neg_image, bands=[3, 2, 1])
+            
+
+        if self.transform:
+            pos_image = self.transform(pos_image)                   
+            neg_image = self.transform(neg_image)
+            
+        return idx, pos_image, neg_image
+    
+    def get_band_from_landsat(self, img, bands):
+        B1 = img[:,:,bands[0]]
+        B2 = img[:,:,bands[1]]
+        B3 = img[:,:,bands[2]]
+
+        image = np.stack([B1, B2, B3], axis=0)
+        return image
+                                 
 
 
-#graph_obj_path = '../dataset/safegraph/compute_graph_checkpoints/checkpoint_11.pkl'
-class NodeDataset(Dataset):
+class StreetViewDataset(Dataset):
     """
     This can be used for both images and text data. Assumes that BOW dictionary has a key for every region in the graph. If the value is null, it resamples a new region key.
     """
