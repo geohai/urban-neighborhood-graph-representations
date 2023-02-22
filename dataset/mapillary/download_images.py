@@ -27,20 +27,13 @@ graph_obj_path = '../safegraph/graph_checkpoints/nyc_metro/checkpoint_1.pkl'
 with open(graph_obj_path, 'rb') as f:
     g_ = pickle.load(f) # CensusTractMobility object
 
-start_time = '2019-11-01' # string in ISO format
-end_time = '2023-01-01' # string in ISO format
-res=256
 
-with open('mapillary_key.txt', 'r') as f:
-    key = f.readline()
-client_id = key
-BASE_DIR = 'data/nyc_metro/'
 
 
 # POI and SV do not require an actual graph structure
 node_embedding_length = 200
 num_sample = 50
-mly.set_access_token(client_id)
+
 
 def query_mapillary(geom, imgfilter='all'):
     minx, miny, maxx, maxy = geom.bounds
@@ -97,7 +90,7 @@ def remove_images_not_in_bbox(full_image_list, geom):
 
 # ---------------- DOWNLOAD IMAGES ----------------- #
 
-def thread_routine(geoid, geom, region_counter):
+def thread_routine(geoid, geom, region_counter, BASE_DIR, res=256):
     try:
         if os.path.exists(BASE_DIR + str(geoid)):
             if len(os.listdir(BASE_DIR + str(geoid))) >= 50:
@@ -115,7 +108,7 @@ def thread_routine(geoid, geom, region_counter):
         imgList = []
         full_image_list = bb_data['features'].copy()
         
-        full_image_list = remove_images_not_in_bbox(full_image_list, geom)
+#         full_image_list = remove_images_not_in_bbox(full_image_list, geom)
         
         if len(full_image_list) == 0:
             # region_bow_map[str(geoid)] = None
@@ -147,19 +140,32 @@ def thread_routine(geoid, geom, region_counter):
         return f'Finished Region {region_counter} -- {geoid}'
 
     except Exception as e:
-        print(f'\nEXCEPT:  {e}\n')
+        print(f'-------\nEXCEPT:  {e}\n-------')
         return e
 
-def runner(g):
+def runner(g, BASE_DIR='data/nyc_metro/', res=256):
+    
+    
     threads = []
-    iterate_over = enumerate(zip(g.tract_data['GEOID'], g.tract_data['geometry']))
+    iterate_over = enumerate(zip(g['GEOID'], g['geometry']))
     # 10 = 73 per hour
     with ThreadPoolExecutor(max_workers=10) as executor:
         for region_counter_, (geoid_, geom_) in iterate_over:
-            threads.append(executor.submit(thread_routine, geoid_, geom_, region_counter_))
+            threads.append(executor.submit(thread_routine, geoid_, geom_, region_counter_, BASE_DIR))
         
         for task in as_completed(threads):
             print(task.result())
 
-print(f'Num of regions: {len(g_.tract_data)}')
-runner(g_)
+if __name__ == "__main__":
+    start_time = '2019-11-01' # string in ISO format
+    end_time = '2023-01-01' # string in ISO format
+    res=256
+
+    with open('mapillary_key.txt', 'r') as f:
+        key = f.readline()
+    client_id = key
+    mly.set_access_token(client_id)
+    BASE_DIR = 'data/nyc_metro/'
+    
+    print(f'Num of regions: {len(g_.tract_data)}')
+    runner(g_.tract_data)

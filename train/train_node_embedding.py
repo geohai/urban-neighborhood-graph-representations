@@ -47,7 +47,7 @@ graph_obj_path = '../dataset/safegraph/compute_graph_checkpoints/grandjunction_d
 with open(graph_obj_path, 'rb') as f:
     g = pickle.load(f) # CensusTractMobility object
 
-num_nodes = g.num_nodes
+num_nodes = pd.read_csv()
 threshold = 0.6
 return_best = True
 if_early_stop = True
@@ -69,7 +69,7 @@ def plot_curves(loss, metric, best_epoch_loss, best_epoch_metric):
     plt.plot([epoch for epoch in range(0, len(loss))], loss, marker='o')
     plt.xlabel('Epoch')
     plt.ylabel('Loss')
-    plt.title(f'GJ/CO Springs/Denver - Train Stage: {data_type}')
+    plt.title(f'Train Stage: {data_type}')
     plt.axvline(x = best_epoch_loss, color = 'r', linestyle='-')
     plt.savefig(save_dir + 'loss')
 
@@ -77,7 +77,7 @@ def plot_curves(loss, metric, best_epoch_loss, best_epoch_metric):
     plt.plot([epoch for epoch in range(0, len(metric))], metric, marker='o')
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy (of triplet learning)')
-    plt.title(f'GJ/CO Springs/Denver - Train Stage: {data_type}')
+    plt.title(f'Train Stage: {data_type}')
     plt.axvline(x = best_epoch_metric, color = 'r', linestyle='-')
     plt.savefig(save_dir + 'accuracy')
 
