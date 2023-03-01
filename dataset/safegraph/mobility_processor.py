@@ -90,7 +90,6 @@ class CensusTractMobility(object):
             self.is_normalized_edge_mat = True
         return
             
-
     def get_edge_mat(self):
         print(f'Summed weights: {self.count_checker}')
         return self.edge_mat

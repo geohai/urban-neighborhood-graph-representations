@@ -202,11 +202,12 @@ class EdgeDataset(Dataset):
     
     def return_positive_candidates_weights(self, anchor_idx):
         neighbor_weights = np.reciprocal(self.edge_weight_mat[anchor_idx], where=self.edge_weight_mat[anchor_idx]!=0) # (km)
+        neighbor_weights = np.nan_to_num(neighbor_weights, 0, 0, 0)
         edges = self.edge_weight_mat[anchor_idx]
  
         # if reciprocol distances is over threshold, it is a neighbor
-        valid = neighbor_weights*1000 > self.threshold  # (km)
-        candidates = np.array(edges[valid] )
+        valid = neighbor_weights*1000 > self.threshold  
+        candidates = np.array(edges[valid])
         idxs = np.nonzero(candidates)
 
         return  idxs[0]# return indices of nonzero elements

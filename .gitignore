@@ -1,0 +1,9 @@
+dataset/__pycache__/
+dataset/api_keys/
+**/.ipynb_checkpoints/
+**/__pycache__/
+dataset/data_files/
+dataset/safegraph/data
+dataset/Tracts/nyc_metro_boundaries/temp.*
+dataset/Tracts/nyc_metro_boundaries/temp_gcs.*
+
