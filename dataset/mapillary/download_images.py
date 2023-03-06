@@ -29,18 +29,25 @@ with open(graph_obj_path, 'rb') as f:
 
 
 
-
 # POI and SV do not require an actual graph structure
 node_embedding_length = 200
 num_sample = 50
 
 
-def query_mapillary(geom, imgfilter='all'):
+def query_mapillary(geom, imgfilter='all', expand_bounds_multiplier=1):
+    
+    
     minx, miny, maxx, maxy = geom.bounds
+#     bbox = {'west': minx, 'south': miny, 'north': maxy, 'east':maxx}
+#     print(bbox)
+    
+    minx = minx - abs(minx - geom.centroid.x)*expand_bounds_multiplier
+    miny = miny - abs(miny - geom.centroid.y)*expand_bounds_multiplier
+    maxx = maxx + abs(maxx - geom.centroid.x)*expand_bounds_multiplier
+    maxy = maxy + abs(maxy - geom.centroid.y)*expand_bounds_multiplier
     bbox = {'west': minx, 'south': miny, 'north': maxy, 'east':maxx}
-    # print(bbox)
-    # print(f"{bbox['west']}, {bbox['south']},{bbox['east']},{bbox['north']}")
-
+#     print(bbox)
+  
     bb_data = json.loads(
         mly.images_in_bbox(bbox,
                             # max_captured_at="*",
@@ -91,6 +98,8 @@ def remove_images_not_in_bbox(full_image_list, geom):
 # ---------------- DOWNLOAD IMAGES ----------------- #
 
 def thread_routine(geoid, geom, region_counter, BASE_DIR, res=256):
+    ##### MODIFY THIS LINE #####
+    expand_bounds_multiplier=2
     try:
         if os.path.exists(BASE_DIR + str(geoid)):
             if len(os.listdir(BASE_DIR + str(geoid))) >= 50:
@@ -113,6 +122,17 @@ def thread_routine(geoid, geom, region_counter, BASE_DIR, res=256):
         if len(full_image_list) == 0:
             # region_bow_map[str(geoid)] = None
             # not_found_counter+=1
+            
+            # expand search bounds and try again
+            bb_data = query_mapillary(geom, 'all', expand_bounds_multiplier=expand_bounds_multiplier)
+
+            # now randomly sample num_sample images, query, and save
+            createDir(BASE_DIR + str(geoid))
+            imgList = []
+            full_image_list = bb_data['features'].copy()
+            
+            if len(full_image_list) == 0:
+                print('no images found')
             return f'No images found in {geoid}.'
             
 
@@ -135,7 +155,7 @@ def thread_routine(geoid, geom, region_counter, BASE_DIR, res=256):
             writeGeo(BASE_DIR + str(geoid), imgList)
 
         with open('data/nyc_metro/log_image.txt', 'a') as fp:
-            fp.write(f'{region_counter}: {geoid} \n')
+            fp.write(f'{region_counter}: {geoid} - expand_bounds_multiplier={expand_bounds_multiplier} \n')
 
         return f'Finished Region {region_counter} -- {geoid}'
 
@@ -161,7 +181,7 @@ if __name__ == "__main__":
     end_time = '2023-01-01' # string in ISO format
     res=256
 
-    with open('mapillary_key.txt', 'r') as f:
+    with open('../api_keys/mapillary_key.txt', 'r') as f:
         key = f.readline()
     client_id = key
     mly.set_access_token(client_id)

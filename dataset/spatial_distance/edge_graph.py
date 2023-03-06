@@ -5,11 +5,10 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import pickle
 import sys
-sys.path.append('safegraph/utils/')
+sys.path.append('../safegraph/')
 from mobility_processor import *
-
 #--------------- SETUP --------------#
-graph_obj_path = 'safegraph/compute_graph_checkpoints/grandjunction_denver/checkpoint_11.pkl'
+graph_obj_path = '../safegraph/graph_checkpoints/nyc_metro/checkpoint_norm.pkl'
 with open(graph_obj_path, 'rb') as f:
     g = pickle.load(f) # CensusTractMobility object
 
@@ -21,44 +20,44 @@ node_embedding_length = 200
 # Read census tract shapefiles: https://www.census.gov/cgi-bin/geo/shapefiles/index.php?year=2021&layergroup=Census+Tracts
 df = g.get_geopandas_tracts()
 df = df.to_crs("EPSG:32643") # https://www.spatialreference.org/ref/epsg/wgs-84-utm-zone-43n/ -- units in meters
-shapes = df[['geometry']]
+shapes = df[['GEOID', 'geometry']]
 
-shapes['centroid'] = shapes.apply(lambda x: x.centroid)
-# subset for now
-t = df.plot()
-plt.savefig('data_files/map')
-plt.show()
-t = df.boundary.plot()
-plt.savefig('data_files/boundarymap')
-plt.show()
+shapes['centroid'] = shapes['geometry'].apply(lambda x: x.centroid)
 
+print(shapes.head())
 
 # ---- COMPUTE EDGE WEIGHT MATRIX  ---- #
 # spatial distance with geopandas
-dist_edge_matrix = np.zeros((num_nodes, num_nodes))
+# dist_edge_matrix = np.zeros((num_nodes, num_nodes))
+distance_dict = {}
 
+with open('distance.pkl', 'rb') as f:
+    distance_dict = pickle.load(f)
+
+
+geoid_list = shapes.GEOID.unique()
 # undirected, so we only need to compute one side of the diagonal
-for i in range(0, num_nodes):
-    for j in range(0, num_nodes):
-        dist_edge_matrix[i][j] = shapes['centroid'].iloc[i].distance(shapes['centroid'].iloc[j])
+for row in range(len(geoid_list)):
+    i = geoid_list[row]
+    if (i in distance_dict.keys()) and (len(distance_dict[i].keys()) == 8231):
+        continue
+    print(i)
+    distance_dict[i] = {}
+    for col in range(row, len(geoid_list)):
+        j = geoid_list[col]
+#         dist_edge_matrix[i][j] = shapes['centroid'].iloc[i].distance(shapes['centroid'].iloc[j])
+        distance_dict[i][j] = shapes.loc[shapes.GEOID == i, 'centroid'].iloc[0].distance(shapes.loc[shapes.GEOID == j, 'centroid'].iloc[0])
+    with open('distance.pkl', 'wb') as f:
+        pickle.dump(distance_dict, f)
+    print(f'saving checkpoint...{row} out of {len(geoid_list)}')
 
-# # now mirror it along the diagonal
-# cp = dist_edge_matrix.T
-# print(cp[0])
-# quit()
-# for i in range(0, num_nodes):
-#     for j in range(i, num_nodes):
-#         if dist_edge_matrix[i][j] == 0:
-#             dist_edge_matrix[i][j] == cp[i][j]
-#         else:
-#             print('not empty')
 
-# TODO: save distance and mobility values 
-np.save('data_files/final_edge_data/distance.npy', dist_edge_matrix)
+with open('distance.pkl', 'wb') as f:
+    pickle.dump(distance_dict, f)
 
-mob_edge_matrix = g.get_edge_mat() # 2D array of mobility weights of nxn
-np.save('data_files/final_edge_data/mobility.npy', mob_edge_matrix)
-print('saved')
+# mob_edge_matrix = g.get_edge_mat() # 2D array of mobility weights of nxn
+# np.save('data_files/final_edge_data/mobility.npy', mob_edge_matrix)
+# print('saved')
 
 
 # ------ Played around with Pytorch Geometric below, ended up not using it ------- #

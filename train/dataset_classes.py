@@ -8,9 +8,9 @@ import numpy as np
 import pickle
 import json
 import sys
-sys.path.append('../dataset/safegraph/utils/')
+sys.path.append('../dataset/safegraph/')
 import os
-import imageio as io
+import imageio.v2 as io
 import glob
 
 class SatelliteImageryDataset(Dataset):
@@ -105,12 +105,10 @@ class StreetViewDataset(Dataset):
         img_dir_search = os.path.join(img_dir, '*.jpg')
         
         files = glob.glob(img_dir_search, recursive=False)
-#         print(files)
         
         is_valid = False
         while(is_valid == False):
             pos_fn = random.choice(files)
-    #         img_path = os.path.join(img_dir, pos_fn)
             pos_image = np.array(io.imread(pos_fn))
             if len(pos_image.shape) == 3:
                 is_valid = True
@@ -145,36 +143,31 @@ class StreetViewDataset(Dataset):
         return idx, pos_image, neg_image
 
     
-class EdgeDataset(Dataset):
+class DistanceDataset(Dataset):
     """
     Generates node indices for triplet sampling with probability based on edge weights between nodes.
     """
-    def __init__(self, node_list_path, graph_obj_path, data_dir='../dataset/data_files/final_edge_data/', fn='distance.npy', data_type='distance', threshold=0.5):
+    def __init__(self, node_list_path, graph_obj_path, is_train=True, threshold=0.5, data=None):
         self.node_list = pd.read_csv(node_list_path, dtype={'GEOID': str})
-        path= data_dir + fn
         self.g = None
         self.threshold = threshold # distance threshold from which to sample a positive sample
-        self.data_type = data_type
-        self.edge_weight_mat = None
+        self.edge_weight_mat = data
+        self.is_train = is_train
+        
+        if self.is_train:
+            self.index = self.node_list.index.values
 
-        # read node list
-        with open(graph_obj_path, 'rb') as f:
-            g = pickle.load(f) # CensusTractMobility object
-
-        self.node_idx_map = g.get_node_idx() # dictionary = (regionid: idx)
-        self.idx_node_map = g.get_idx_node() # dictionary = (idx: region_id)
         print(f'Num Nodes: {self.__len__()}')
-        # read graph obj
-        with open(path, 'rb') as f:
-            print(path)
-            self.edge_weight_mat = np.load(f)
-            print(self.edge_weight_mat.shape)
+      
 
     def __len__(self):
          return len(self.node_list)
 
     def __getitem__(self, idx):
-        node_idx_list_cp = list(self.idx_node_map.keys())
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+            
+        node_idx_list_cp = list(self.node_list).copy()
 
         anchor_sampled_idx = idx # sample anchor node
 
@@ -190,7 +183,7 @@ class EdgeDataset(Dataset):
     def return_positive_candidates_distance(self, anchor_idx):
         # get 5 closest neighbors according to paper (just for distance)
         edges = self.edge_weight_mat[anchor_idx]
-        neighbor_weights = np.reciprocal(edges, where=edges!=0)*1000 # (km)
+        neighbor_weights = np.reciprocal(edges, where=edges!=0)
         
         # if reciprocol distances is over threshold, it is a neighbor
         valid = neighbor_weights*1000 > self.threshold # (km)
@@ -200,15 +193,87 @@ class EdgeDataset(Dataset):
         idxs = candidates.argsort()[-5:][::-1]
         return idxs
     
-    def return_positive_candidates_weights(self, anchor_idx):
-        neighbor_weights = np.reciprocal(self.edge_weight_mat[anchor_idx], where=self.edge_weight_mat[anchor_idx]!=0) # (km)
-        neighbor_weights = np.nan_to_num(neighbor_weights, 0, 0, 0)
-        edges = self.edge_weight_mat[anchor_idx]
+#     def return_positive_candidates_weights(self, anchor_idx):
+#         neighbor_weights = np.reciprocal(self.edge_weight_mat[anchor_idx], where=self.edge_weight_mat[anchor_idx]!=0) # (km)
+#         neighbor_weights = np.nan_to_num(neighbor_weights, 0, 0, 0)
+#         edges = self.edge_weight_mat[anchor_idx]
  
-        # if reciprocol distances is over threshold, it is a neighbor
-        valid = neighbor_weights*1000 > self.threshold  
-        candidates = np.array(edges[valid])
-        idxs = np.nonzero(candidates)
+#         # if reciprocol distances is over threshold, it is a neighbor
+#         valid = neighbor_weights*1000 > self.threshold  
+#         candidates = np.array(edges[valid])
+#         idxs = np.nonzero(candidates)
 
-        return  idxs[0]# return indices of nonzero elements
+#         return  idxs[0]# return indices of nonzero elements
+        
+        
+# class DistanceDataset(Dataset):
+#     """
+#     Generates node indices for triplet sampling with probability based on edge weights between nodes.
+#     """
+#     def __init__(self, node_list_path, graph_obj_path, is_train=True, threshold=0.5, data=None):
+#         self.node_list = pd.read_csv(node_list_path, dtype={'GEOID': str})
+#         self.g = None
+#         self.threshold = threshold # distance threshold from which to sample a positive sample
+#         self.edge_weight_mat = None
+#         self.is_train = is_train
+#         self.data = data
+        
+#         if self.is_train:
+#             self.index = self.node_list.index.values
+
+#         # read node list
+#         with open(graph_obj_path, 'rb') as f:
+#             g = pickle.load(f) # CensusTractMobility object
+#             self.edge_weight_mat = g.edge_mat
+        
+# #         self.node_idx_map = g.get_node_idx() # dictionary = (regionid: idx)
+# #         self.idx_node_map = g.get_idx_node() # dictionary = (idx: region_id)
+#         print(f'Num Nodes: {self.__len__()}')
+      
+
+#     def __len__(self):
+#          return len(self.node_list)
+
+#     def __getitem__(self, idx):
+#         if torch.is_tensor(idx):
+#             idx = idx.tolist()
+            
+        
+#         node_idx_list_cp = list(self.idx_node_map.keys())
+
+#         anchor_sampled_idx = idx # sample anchor node
+
+#         candidate_idx_list = self.return_positive_candidates_distance(anchor_sampled_idx)
+#         [node_idx_list_cp.remove(i) for i in candidate_idx_list] # remove neighbors 
+
+#         pos_idx = random.choice(candidate_idx_list)
+#         neg_idx = random.choice(node_idx_list_cp) # sample negative node
+
+#         return anchor_sampled_idx, pos_idx, neg_idx
+
+
+#     def return_positive_candidates_distance(self, anchor_idx):
+#         # get 5 closest neighbors according to paper (just for distance)
+#         edges = self.edge_weight_mat[anchor_idx]
+#         neighbor_weights = np.reciprocal(edges, where=edges!=0)*1000 # (km)
+        
+#         # if reciprocol distances is over threshold, it is a neighbor
+#         valid = neighbor_weights*1000 > self.threshold # (km)
+#         candidates = edges[valid] 
+
+#         # now filter to five nearest neighbors and return their indices
+#         idxs = candidates.argsort()[-5:][::-1]
+#         return idxs
+    
+#     def return_positive_candidates_weights(self, anchor_idx):
+#         neighbor_weights = np.reciprocal(self.edge_weight_mat[anchor_idx], where=self.edge_weight_mat[anchor_idx]!=0) # (km)
+#         neighbor_weights = np.nan_to_num(neighbor_weights, 0, 0, 0)
+#         edges = self.edge_weight_mat[anchor_idx]
+ 
+#         # if reciprocol distances is over threshold, it is a neighbor
+#         valid = neighbor_weights*1000 > self.threshold  
+#         candidates = np.array(edges[valid])
+#         idxs = np.nonzero(candidates)
+
+#         return  idxs[0]# return indices of nonzero elements
         

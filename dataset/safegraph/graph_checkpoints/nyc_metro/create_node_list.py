@@ -12,9 +12,9 @@ def get_regions_to_retry():
         if root == 'download_landsat_images/':
             continue
         for f in files:
-            if f == 'least_cloudy_clipped_highres.tif':
+            if f == 'least_cloudy_rectangle_highres.tif':
                 counter+=1
-        if 'least_cloudy_clipped_highres.tif' not in files:
+        if 'least_cloudy_rectangle_highres.tif' not in files:
             l.append(root)
 #             print(root)
             
@@ -23,6 +23,7 @@ def get_regions_to_retry():
 #     al = len(os.listdir("download_landsat_images/"))
 #     print(f'Num folders total: {al}')
     print(f'Num target files total: {counter}')
+    print(f'Number of earth engine tracts to remove: {len(l)}')
     print()
     l = [item[-11:] for item in l]
     return l
@@ -41,6 +42,7 @@ def get_regions_to_retry_mapillary():
             l.append(root)
    
     l = [item[-11:] for item in l]
+    print(f'Number of mapillary tracts to remove: {len(l)}')
     return l
 
 
