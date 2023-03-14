@@ -6,4 +6,4 @@ def createCleanDir(base_path):
       shutil.rmtree(base_path)
   except:
       pass
-  os.mkdir(base_path)
+  os.makedirs(base_path)

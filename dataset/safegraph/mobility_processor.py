@@ -49,6 +49,8 @@ class CensusTractMobility(object):
                     try:
                         dest_idx = self.node_idx_map[row['GEOID']]
                         self.edge_mat[src_idx][dest_idx] += weight
+                        # Uncomment below for mirrored / undirected graph
+#                         self.edge_mat[dest_idx][src_idx] += weight
                     except:
                         print('Except: geoid not found in the graph nodes.')
                         pass
