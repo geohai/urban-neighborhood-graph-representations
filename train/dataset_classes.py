@@ -153,7 +153,7 @@ class SatelliteImageryDataset(Dataset):
         else:
             img_path = os.path.join(pos_img_dir, self.fn)
             pos_image = io.imread(img_path)
-            pos_image = self.get_band_from_landsat(pos_image, bands=[3, 2, 1])
+            pos_image = self.get_band_from_landsat(pos_image, bands=[2, 1, 0])
             if self.transform:
                 pos_image = self.transform(pos_image)
                 save_path = os.path.join(pos_img_dir, 'img_resnet.pt')
@@ -173,7 +173,7 @@ class SatelliteImageryDataset(Dataset):
             else:
                 img_path = os.path.join(img_dir, self.fn)
                 neg_image = io.imread(img_path)
-                neg_image = self.get_band_from_landsat(neg_image, bands=[3, 2, 1])
+                neg_image = self.get_band_from_landsat(neg_image, bands=[2, 1, 0])
                 if self.transform:
                     neg_image = self.transform(neg_image)
             
@@ -196,7 +196,7 @@ class SatelliteImageryDataset(Dataset):
             img_path = os.path.join(img_dir, self.fn)
 
             pos_image = io.imread(img_path)
-            pos_image = self.get_band_from_landsat(pos_image, bands=[3, 2, 1])
+            pos_image = self.get_band_from_landsat(pos_image, bands=[2, 1, 0])
 
             return pos_image
                                  
@@ -302,6 +302,8 @@ class MobilityDataset(Dataset):
         zero_rows = len(zero_row_idxs)
         print(f'Number of tracts with 0 edges: {zero_rows}')
         
+        print(self.graph[0:10, 0:10])
+        
 
     def __len__(self):
         if len(self.dataset_node_idx_mapping.keys()) != self.graph.shape[0]:
@@ -349,6 +351,7 @@ class MobilityDataset(Dataset):
         valid = np.argwhere(edges > threshold_percentile)
 
         valid = valid.flatten()
+        valid = np.delete(valid, np.where(valid == anchor_idx))
         
         return valid
        
@@ -373,6 +376,8 @@ class DistanceDataset(Dataset):
             self.index = node_list.index.values
 
         print(f'Num Nodes: {self.__len__()}')
+        
+        print(self.graph[0:5, 0:5])
       
 
     def __len__(self):
@@ -399,7 +404,7 @@ class DistanceDataset(Dataset):
             print(f'ERROR: No positive candidates for geoid:{idx_geoid}.')
             
         # get dataset idxs of non-neighbors
-        negative_candidate_idx_list = [i for i in self.dataset_node_idx_mapping.values() if i not in positive_candidate_idx_list]
+        negative_candidate_idx_list = [i for i in self.dataset_node_idx_mapping.values() if i not in positive_candidate_idx_list and i != idx]
 
         # randomly sample positive and negative
         pos_idx = random.choice(positive_candidate_idx_list)
@@ -410,7 +415,6 @@ class DistanceDataset(Dataset):
 
     def return_positive_candidates(self, anchor_idx):
         # get 5 closest neighbors according to paper (just for distance)
-        
         # get all the edge weights from this anchor node
         edges = self.graph[anchor_idx]
 #         neighbor_weights = np.reciprocal(edges, where=edges!=0)
@@ -420,8 +424,9 @@ class DistanceDataset(Dataset):
 #         candidates = edges[valid] 
         candidates = edges
         
-#         print(candidates)
        
         # now filter to nearest neighbors and return their indices
-        idxs = candidates.argsort()[0:150]
+        idxs = candidates.argsort()[0:11]
+        idxs = np.delete(idxs, np.where(idxs == anchor_idx))
+
         return idxs

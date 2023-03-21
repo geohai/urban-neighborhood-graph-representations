@@ -5,10 +5,12 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import pickle
 import sys
-sys.path.append('../safegraph/')
+
+root = '/mnt/e/julia/regional-representations-graph-model/'
+sys.path.append(root + 'dataset/safegraph/')
 from mobility_processor import *
 #--------------- SETUP --------------#
-graph_obj_path = '../safegraph/graph_checkpoints/nyc_metro/checkpoint_norm.pkl'
+graph_obj_path = root + 'dataset/safegraph/graph_checkpoints/nyc_metro/checkpoint_norm.pkl'
 with open(graph_obj_path, 'rb') as f:
     g = pickle.load(f) # CensusTractMobility object
 
@@ -30,46 +32,35 @@ print(shapes.head())
 # ------- array load -------
 dist_edge_matrix = np.zeros((num_nodes, num_nodes))
 
-# --------dictionary load------
-# distance_dict = {}
-# with open('distance.pkl', 'rb') as f:
-#     distance_dict = pickle.load(f)
-
 
 geoid_list = shapes.GEOID.unique()
 node_idx_map = {}
 for row in range(len(geoid_list)):
     i = geoid_list[row]
     node_idx_map[i] = row
-#     if (i in distance_dict.keys()) and (len(distance_dict[i].keys()) == 8231):
-#         continue
-#     print(i)
-#     distance_dict[i] = {}
     for col in range(row, len(geoid_list)):
         j = geoid_list[col]
-#         dist_edge_matrix[i][j] = shapes['centroid'].iloc[i].distance(shapes['centroid'].iloc[j])
         dist_edge_matrix[row][col] = shapes.loc[shapes.GEOID == i, 'centroid'].iloc[0].distance(shapes.loc[shapes.GEOID == j, 'centroid'].iloc[0])
-    with open('distance_array.pkl', 'wb') as f:
-        pickle.dump(dist_edge_matrix, f)
-    print(f'saving checkpoint...{row} out of {len(geoid_list)}')
+    
     if row % 200 == 0:
         with open(f'distance_array_{row}.pkl', 'wb') as f:
             pickle.dump(dist_edge_matrix, f)
 
-
-with open('distance_array.pkl', 'wb') as f:
+# now fill in the rest of the matrix as it is undirected we can mirror across the diagonal
+for row in range(0, dist_edge_matrix.shape[0]):
+    for col in range(0, dist_edge_matrixdist_edge_matrix.shape[0]):
+        if dist_edge_matrix[row][col] == 0 and row != col:
+            dist_edge_matrix[row][col] = dist_edge_matrix[col][row]
+            
+with open(root + 'dataset/spatial_distance/distance_array.pkl', 'wb') as f:
     pickle.dump(dist_edge_matrix, f)
-with open('node_idx_map.pkl', 'wb') as f:
+with open(root + 'dataset/spatial_distance/node_idx_map.pkl', 'wb') as f:
     pickle.dump(node_idx_map, f)
 
-idx_node_map = dict(zip(d.values(), d.keys()))
-with open('idx_node_map.pkl', 'wb') as f:
+idx_node_map = dict(zip(node_idx_map.values(), node_idx_map.keys()))
+with open(root + 'dataset/spatial_distance/idx_node_map.pkl', 'wb') as f:
     pickle.dump(idx_node_map, f)
     
-# mob_edge_matrix = g.get_edge_mat() # 2D array of mobility weights of nxn
-# np.save('data_files/final_edge_data/mobility.npy', mob_edge_matrix)
-# print('saved')
-
 
 # ------ Played around with Pytorch Geometric below, ended up not using it ------- #
 
