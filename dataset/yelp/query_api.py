@@ -11,13 +11,12 @@ from urllib.parse import quote
 from urllib.parse import urlencode
 import random
 from shapely.geometry import Point
-sys.path.append('safegraph/utils/')
-from mobility_processor import *
+root = '/mnt/e/julia/regional-representations-graph-model/dataset/'
+sys.path.append(root + 'safegraph/')
 
 import pickle
-
 # https://www.yelp.com/developers/v3/manage_app
-with open('yelp/yelp_key_wait.txt') as f:
+with open(root + 'api_keys/yelp_key2.txt') as f:
     lines = f.readline()
 API_KEY = lines
 
@@ -28,8 +27,8 @@ BUSINESS_PATH = '/v3/businesses/'  # Business ID will come after slash.
 
 
 # Defaults for our simple example.
-SEARCH_LIMIT = 10
-num_reviews = 5
+SEARCH_LIMIT = 50
+# num_reviews = 5
 
 def request(host, path, api_key, url_params=None):
     """Given your API_KEY, send a GET request to the API.
@@ -64,21 +63,21 @@ def search(api_key, longitude, latitude):
     url_params = {
         'longitude': longitude.replace(' ', '+'),
         'latitude': latitude.replace(' ', '+'),
-        'radius': '1610'.replace(' ', '+'), # 1 miles
+        'radius': '800'.replace(' ', '+'), # 0.5 miles
         'limit': SEARCH_LIMIT
     }
     return request(API_HOST, SEARCH_PATH, api_key, url_params=url_params)
 
-def get_business_reviews(api_key, business_id):
-    """Query the Business API by a business ID.
-    Args:
-        business_id (str): The ID of the business to query.
-    Returns:
-        dict: The JSON response from the request.
-    """
-    business_path = BUSINESS_PATH + business_id + '/reviews'
+# def get_business_reviews(api_key, business_id):
+#     """Query the Business API by a business ID.
+#     Args:
+#         business_id (str): The ID of the business to query.
+#     Returns:
+#         dict: The JSON response from the request.
+#     """
+#     business_path = BUSINESS_PATH + business_id + '/reviews'
 
-    return request(API_HOST, business_path, api_key)
+#     return request(API_HOST, business_path, api_key)
 
 def query_api(longitude, latitude):
     response = search(API_KEY,  longitude, latitude)
@@ -97,32 +96,19 @@ def query_api(longitude, latitude):
                 bow_list += cat['alias'] + ' '
             except:
                 pass
-        try:
-            bow_list += business['price'] + ' '
-        except:
-            pass
+#         try:
+#             bow_list += business['price'] + ' '
+#         except:
+#             pass
         
         business_id = business['id']
-        print(f'Business ID: {business_id}')
-        reviews = get_business_reviews(API_KEY, business_id).get('reviews')
-        if (reviews != None):
-            temp_num_reviews = min(len(reviews), num_reviews)
-            for review in reviews[0:temp_num_reviews]:
-                bow_list += review['text'] + ' '
-    
+#         print(f'Business ID: {business_id}')
+#         reviews = get_business_reviews(API_KEY, business_id).get('reviews')
+#         if (reviews != None):
+#             temp_num_reviews = min(len(reviews), num_reviews)
+#             for review in reviews[0:temp_num_reviews]:
+#                 bow_list += review['text'] + ' '
+#     print(bow_list)
+
+    print('----')
     return bow_list
-
-if __name__ == '__main__':
-    graph_obj_path = 'safegraph/compute_graph_checkpoints/checkpoint_11.pkl'
-    with open(graph_obj_path, 'rb') as f:
-        g = pickle.load(f) # CensusTractMobility object
-    idx_node_map = g.get_idx_node() # dictionary = (idx: region_id)
-    
-    
-    for polygon in g.tract_data['geometry'][0:1]:
-        bow = ' '
-        point = polygon.centroid  # assume that centroid is in shape
-        bow += query_api(str(point.x), str(point.y))
-
-    print(bow)
-

@@ -125,13 +125,14 @@ class SatelliteImageryDataset(Dataset):
     transform (callable, optional): transforms on images.
     """
     
-    def __init__(self, node_list_path, root_image_dir, fn, is_train=True, transform=None, load_embeddings=True):
+    def __init__(self, node_list_path, root_image_dir, fn, is_train=True, transform=None, load_embeddings=True, embedding_fn='img_resnet_original.pt'):
         self.node_list = pd.read_csv(node_list_path, dtype={'GEOID': str})
         self.root_dir = root_image_dir
         self.fn = fn
         self.is_train = is_train
         self.transform = transform
         self.load_embeddings = load_embeddings
+        self.embedding_fn = embedding_fn
         
         if self.is_train:
             self.index = self.node_list.index.values
@@ -147,7 +148,7 @@ class SatelliteImageryDataset(Dataset):
         pos_idx = idx
         pos_img_dir = os.path.join(self.root_dir, str(self.node_list.iloc[pos_idx, 0]))
         
-        img_path = os.path.join(pos_img_dir, 'img_resnet.pt')
+        img_path = os.path.join(pos_img_dir, self.embedding_fn)
         if self.load_embeddings == True and os.path.exists(img_path):
             pos_image = torch.load(img_path)
         else:
@@ -156,7 +157,7 @@ class SatelliteImageryDataset(Dataset):
             pos_image = self.get_band_from_landsat(pos_image, bands=[2, 1, 0])
             if self.transform:
                 pos_image = self.transform(pos_image)
-                save_path = os.path.join(pos_img_dir, 'img_resnet.pt')
+                save_path = os.path.join(pos_img_dir, self.embedding_fn)
                 torch.save(pos_image, save_path)
         
         if self.is_train:
@@ -166,7 +167,7 @@ class SatelliteImageryDataset(Dataset):
             
             img_dir = os.path.join(self.root_dir, str(self.node_list.iloc[neg_idx, 0]))
             
-            img_path = os.path.join(img_dir, 'img_resnet.pt')
+            img_path = os.path.join(img_dir, self.embedding_fn)
             if self.load_embeddings == True and os.path.exists(img_path):
                 neg_image = torch.load(img_path)
                 return idx, pos_image, neg_image
@@ -199,6 +200,11 @@ class SatelliteImageryDataset(Dataset):
             pos_image = self.get_band_from_landsat(pos_image, bands=[2, 1, 0])
 
             return pos_image
+        
+    def __getsampleembeddingtest__(self, idx):
+        pos_img_dir = os.path.join(self.root_dir, str(self.node_list.iloc[idx, 0]))
+        img_path = os.path.join(pos_img_dir, self.embedding_fn)
+        return np.array(torch.load(img_path).cpu()) 
                                  
 
 
