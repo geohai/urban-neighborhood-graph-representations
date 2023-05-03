@@ -105,7 +105,8 @@ def train_embedding(model, data_type, dataloaders, criterion, optimizer, metrics
             with torch.set_grad_enabled(True):
                 # Get model outputs and calculate loss
                 outputs = model(pos_index)
-
+                print(f'Outputs: {outputs.shape}')
+                print(f'Pos Embeddings: {pos_encoder_embedding.shape}')
                 loss = criterion(outputs, pos_encoder_embedding, neg_encoder_embedding) # anchor, pos, neg
 
                 # evaluate based on whether dist(anchor, pos) < dist(anchor, neg)
