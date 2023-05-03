@@ -116,8 +116,9 @@ class ResNetTransform:
             y_pred = torch.squeeze(y_pred)
             return y_pred
         
-        
+
 ########### -------------------DATA CLASSES ----------------------##########
+device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
 class SatelliteImageryDataset(Dataset):
     """
     csv_file: Path to the csv file containing "node" column with geoids.
@@ -155,7 +156,10 @@ class SatelliteImageryDataset(Dataset):
             img_path = os.path.join(pos_img_dir, self.fn)
             pos_image = io.imread(img_path)
             pos_image = self.get_band_from_landsat(pos_image, bands=[2, 1, 0])
+            
             if self.transform:
+                pos_image = torch.from_numpy(pos_image.astype(np.float))
+                pos_image = pos_image.to(device, dtype=torch.float)
                 pos_image = self.transform(pos_image)
                 save_path = os.path.join(pos_img_dir, self.embedding_fn)
                 torch.save(pos_image, save_path)
@@ -176,6 +180,8 @@ class SatelliteImageryDataset(Dataset):
                 neg_image = io.imread(img_path)
                 neg_image = self.get_band_from_landsat(neg_image, bands=[2, 1, 0])
                 if self.transform:
+                    neg_image = torch.from_numpy(neg_image.astype(np.float))
+                    neg_image = neg_image.to(device, dtype=torch.float)
                     neg_image = self.transform(neg_image)
             
         return idx, pos_image, neg_image
